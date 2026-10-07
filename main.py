@@ -24,7 +24,7 @@ from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardR
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 # =================== SOZLAMALAR (faqat shu yerni to'ldiring) ===================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "BU_YERGA_YANGI_TOKENNI_YOZING")
+BOT_TOKEN = os.environ.get("8954402979:AAFO54qw9iphylm2b4odebRQhLSx1A7PBD4")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "8554402317"))
 # ===============================================================================
 
