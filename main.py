@@ -712,16 +712,29 @@ async def start_web():
     await site.start()
 
 
+import http.server
+import socketserver
+import threading
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    handler = http.server.SimpleHTTPRequestHandler
+    try:
+        with socketserver.TCPServer(("0.0.0.0", port), handler) as httpd:
+            httpd.serve_forever()
+    except Exception as e:
+        logging.error(f"Server xatosi: {e}")
+
 async def main():
     logging.basicConfig(level=logging.INFO)
-    await start_web()
+    # Render port talab qilgani uchun fonga server beramiz:
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
     dp.update.outer_middleware(BanMiddleware())
     dp.include_router(router)
     await dp.start_polling(bot)
 
-
 if __name__ == "__main__":
     asyncio.run(main())
-  
