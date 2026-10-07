@@ -1,5 +1,5 @@
 """
-Tanishuv boti (aiogram 3.x): anonim suhbat + VIP + AI suhbat + admin panel.
+Tanishuv boti (aiogram 3.x): anonim suhbat + VIP + admin panel.
 requirements.txt:  aiogram
 """
 import asyncio
@@ -24,11 +24,8 @@ from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardR
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 # =================== SOZLAMALAR (faqat shu yerni to'ldiring) ===================
-BOT_TOKEN = os.environ.get("8954402979:AAFO54qw9iphylm2b4odebRQhLSx1A7PBD4")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "BU_YERGA_YANGI_TOKENNI_YOZING")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "8554402317"))
-# AI bo'limi uchun (console.anthropic.com dan olinadi). Bo'sh bo'lsa AI o'chiq turadi.
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-AI_MODEL = os.environ.get("AI_MODEL", "claude-sonnet-5-5")
 # ===============================================================================
 
 # ---------------------------------------------------------------- DB
@@ -43,13 +40,10 @@ CREATE TABLE IF NOT EXISTS queue(user_id INTEGER PRIMARY KEY, gender TEXT, ts IN
 CREATE TABLE IF NOT EXISTS pairs(a INTEGER, b INTEGER);
 CREATE TABLE IF NOT EXISTS watch(user_id INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT);
-CREATE TABLE IF NOT EXISTS ai_usage(user_id INTEGER, day TEXT, n INTEGER,
-  PRIMARY KEY(user_id, day));
 INSERT OR IGNORE INTO settings VALUES('card','Karta raqami kiritilmagan');
 INSERT OR IGNORE INTO settings VALUES('price','50 000');
 INSERT OR IGNORE INTO settings VALUES('vip_days','30');
 INSERT OR IGNORE INTO settings VALUES('channel','');
-INSERT OR IGNORE INTO settings VALUES('ai_limit','0');
 INSERT OR IGNORE INTO settings VALUES('photo_secs','5');
 INSERT OR IGNORE INTO settings VALUES('intro','');
 CREATE TABLE IF NOT EXISTS reports(reporter INTEGER, reported INTEGER, ts INTEGER);
@@ -112,44 +106,6 @@ def has_contact(text):
                 or LINK_RE.search(text) or APP_RE.search(text))
 
 
-# ---------------------------------------------------------------- AI
-PERSONAS = {
-    "psy": ("Sen mehribon va e'tiborli psixolog-suhbatdoshsan. Foydalanuvchini diqqat bilan tingla, "
-            "his-tuyg'ularini tushun, ochiq savollar ber, maslahatni yumshoq ber. Tashxis qo'yma va "
-            "professional psixolog o'rnini bosmasligingni kerak bo'lsa ayt. Agar foydalanuvchi o'ziga "
-            "zarar yetkazish yoki yashashni xohlamaslik haqida yozsa, uni jiddiy qabul qil, qo'llab-quvvatla, "
-            "ishongan odamiga yoki mutaxassisga/favqulodda xizmatga murojaat qilishga yumshoq unda."),
-    "friend": ("Sen foydalanuvchining samimiy do'sti (yigit) rolidasan: oddiy, iliq, ba'zan hazil bilan, "
-               "qo'llab-quvvatlovchi uslubda gaplash."),
-    "girl": ("Sen foydalanuvchining samimiy dugonasi (qiz) rolidasan: iliq, mehribon, tushunadigan "
-             "uslubda gaplash, sirlarni tinglashga tayyor bo'l."),
-}
-COMMON_RULES = (" Asosan o'zbek tilida (lotin) yoz, foydalanuvchi boshqa tilda yozsa o'sha tilda javob ber. "
-                "Javoblar qisqa (2-6 gap) va samimiy bo'lsin. Foydalanuvchi so'rasa, sen sun'iy intellekt "
-                "ekaningni yashirma.")
-
-
-async def ask_ai(persona, history):
-    if not ANTHROPIC_API_KEY:
-        return None
-    payload = {"model": AI_MODEL, "max_tokens": 700,
-               "system": PERSONAS[persona] + COMMON_RULES, "messages": history}
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.post("https://api.anthropic.com/v1/messages", json=payload,
-                              headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as r:
-                data = await r.json()
-        text = "".join(b.get("text", "") for b in data.get("content", []))
-        if not text:
-            logging.error("AI xato: %s", data)
-        return text or None
-    except Exception as e:
-        logging.error("AI xato: %s", e)
-        return None
-
-
 # ---------------------------------------------------------------- States
 class Reg(StatesGroup):
     name = State(); gender = State(); age = State(); city = State(); photo = State()
@@ -157,10 +113,6 @@ class Reg(StatesGroup):
 
 class Pay(StatesGroup):
     receipt = State()
-
-
-class AI(StatesGroup):
-    chat = State()
 
 
 class Adm(StatesGroup):
@@ -184,11 +136,11 @@ class BanMiddleware(BaseMiddleware):
 # ---------------------------------------------------------------- Klaviaturalar
 def main_menu(uid):
     b = ReplyKeyboardBuilder()
-    for t in ("💬 Suhbatdosh topish", "🤖 AI suhbat", "👤 Profilim", "💎 VIP obuna", "ℹ️ Yordam"):
+    for t in ("💬 Suhbatdosh topish", "👤 Profilim", "💎 VIP obuna", "ℹ️ Yordam"):
         b.button(text=t)
     if uid == ADMIN_ID:
         b.button(text="🛠 Admin panel")
-    b.adjust(2, 2, 2)
+    b.adjust(2, 2, 1)
     return b.as_markup(resize_keyboard=True)
 
 
@@ -228,8 +180,7 @@ INTRO = ("👋 <b>Botga xush kelibsiz!</b>\n\n"
          "1️⃣ Qisqa ro'yxatdan o'tasiz (ism, jins, yosh, shahar, rasm).\n"
          "2️⃣ «💬 Suhbatdosh topish» ni bosasiz, bot qarama-qarshi jinsdan suhbatdosh topadi.\n"
          "3️⃣ Suhbat bot orqali o'tadi, bir-biringizning Telegram manzilingizni ko'rmaysiz.\n"
-         "4️⃣ «⏭ Keyingisi» bilan boshqasini topasiz, «⛔ Tugatish» bilan tugatasiz.\n"
-         "5️⃣ «🤖 AI suhbat» da sun'iy intellekt bilan psixolog, do'st yoki dugona sifatida gaplashasiz.\n\n"
+         "4️⃣ «⏭ Keyingisi» bilan boshqasini topasiz, «⛔ Tugatish» bilan tugatasiz.\n\n"
          "🆓 <b>Tekin tarif:</b> matn, stiker va ovozli xabar yuborasiz. Telefon raqam, nik va havola "
          "yuborish taqiqlangan. Suhbatdosh rasmi {secs} soniya ko'rinadi.\n"
          "💎 <b>VIP:</b> cheklov yo'q, suhbatdosh kimligi va Telegram manzilini ko'rasiz, rasm doim ochiq.\n\n"
@@ -580,433 +531,4 @@ async def report(m: Message, bot: Bot):
     if not p:
         return await m.answer("Siz suhbatda emassiz.")
     q("INSERT OR IGNORE INTO watch VALUES(?)", (p,), commit=True)
-    q("INSERT INTO reports VALUES(?,?,?)", (m.from_user.id, p, int(time.time())), commit=True)
-    await bot.send_message(ADMIN_ID, f"⚠️ <b>Shikoyat</b>\nShikoyatchi: <code>{m.from_user.id}</code>\n"
-                                     f"Shikoyat qilingan: <code>{p}</code> (kuzatuvga olindi)",
-                           reply_markup=inline([("🚫 Bloklash", f"ban:{p}")], 1))
-    await m.answer("Shikoyat adminga yuborildi. Rahmat.")
-
-
-# ---------------------------------------------------------------- AI suhbat
-@router.message(F.text == "🤖 AI suhbat")
-async def ai_menu(m: Message, bot: Bot):
-    if not await gate(m, bot):
-        return
-    if partner(m.from_user.id):
-        return await m.answer("Avval suhbatni tugating.")
-    if not ANTHROPIC_API_KEY:
-        return await m.answer("AI bo'limi hozircha o'chiq.")
-    await m.answer("Kim bilan suhbatlashmoqchisiz?", reply_markup=inline(
-        [("🧠 Psixolog", "ai:psy"), ("🤝 Do'st", "ai:friend"), ("👭 Dugona", "ai:girl")], 3))
-
-
-@router.callback_query(F.data.startswith("ai:"))
-async def ai_start(c: CallbackQuery, state: FSMContext):
-    persona = c.data[3:]
-    await state.set_state(AI.chat)
-    await state.update_data(persona=persona, history=[])
-    await c.message.delete()
-    await c.message.answer("Eshitaman, yozing 💬\n(Chiqish uchun «🔙 Chiqish» tugmasini bosing)",
-                           reply_markup=cancel_kb("🔙 Chiqish"))
-
-
-@router.message(AI.chat, F.text)
-async def ai_chat(m: Message, state: FSMContext, bot: Bot):
-    uid = m.from_user.id
-    if m.text == "🔙 Chiqish":
-        await state.clear()
-        return await m.answer("AI suhbat tugadi.", reply_markup=main_menu(uid))
-    limit = int(setting("ai_limit"))
-    if limit > 0 and not is_vip(uid):
-        used = q("SELECT n FROM ai_usage WHERE user_id=? AND day=?", (uid, today()), one=True)
-        if used and used["n"] >= limit:
-            return await m.answer(f"Bugungi tekin limit ({limit} ta xabar) tugadi. "
-                                  "Cheklovsiz foydalanish uchun 💎 VIP oling.",
-                                  reply_markup=inline([("💎 VIP olish", "vip:info")], 1))
-    d = await state.get_data()
-    history = d["history"] + [{"role": "user", "content": m.text}]
-    await bot.send_chat_action(m.chat.id, ChatAction.TYPING)
-    reply = await ask_ai(d["persona"], history[-20:])
-    if not reply:
-        return await m.answer("Hozir javob bera olmayapman, birozdan keyin urinib ko'ring.")
-    q("INSERT INTO ai_usage VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET n=n+1",
-      (uid, today()), commit=True)
-    history.append({"role": "assistant", "content": reply})
-    await state.update_data(history=history[-20:])
-    await m.answer(esc(reply))
-
-
-# ---------------------------------------------------------------- ADMIN PANEL
-def admin_kb():
-    return inline([
-        ("📊 Statistika", "adm:stats"), ("🔎 Foydalanuvchini topish", "adm:find"),
-        ("👥 Oxirgi foydalanuvchilar", "adm:users"), ("💎 VIP ro'yxati", "adm:vips"),
-        ("💬 Faol suhbatlar", "adm:chats"), ("👁 Kuzatuv ro'yxati", "adm:watchlist"),
-        ("➕ Kuzatuvga qo'shish", "adm:watch"), ("⚠️ Shikoyatlar", "adm:reports"),
-        ("💎 VIP berish", "adm:grant"), ("✉️ Shaxsiy xabar", "adm:msg"),
-        ("💳 Karta raqami", "set:card"), ("💵 VIP narxi", "set:price"),
-        ("📅 VIP kunlari", "set:vip_days"), ("📢 Majburiy kanal", "set:channel"),
-        ("⏱ Rasm soniyalari", "set:photo_secs"), ("🤖 AI limit (0=cheksiz)", "set:ai_limit"),
-        ("📝 Kirish matni", "set:intro"), ("📨 Hammaga xabar", "adm:bc"),
-        ("🚫 Bloklash", "adm:ban"), ("♻️ Blokdan chiqarish", "adm:unban"),
-        ("🚫 Bloklanganlar", "adm:banned"),
-    ])
-
-
-@router.message(F.from_user.id == ADMIN_ID, F.text == "🛠 Admin panel")
-async def admin_panel(m: Message, state: FSMContext):
-    await state.clear()
-    await m.answer("🛠 <b>Admin panel</b>", reply_markup=admin_kb())
-
-
-SET_PROMPTS = {
-    "card": "Yangi karta raqami (va egasi) ni yozing:",
-    "price": "VIP narxini yozing (masalan: 50 000):",
-    "vip_days": "VIP necha kunga berilsin (raqam):",
-    "channel": "Majburiy kanal/guruh username'ini yozing (masalan: @kanal_nomi).\n"
-               "Bot u yerda admin bo'lishi shart. O'chirish uchun «-» yozing:",
-    "ai_limit": "Tekin foydalanuvchi uchun kuniga nechta AI xabar (raqam). 0 = cheksiz:",
-    "photo_secs": "Tekin foydalanuvchi suhbatdosh rasmini necha soniya ko'radi (raqam):",
-    "intro": "Yangi foydalanuvchilarga ko'rsatiladigan tushuntirish matnini yozing.\n"
-             "Standart matnga qaytish uchun «-» yozing:",
-}
-NUMERIC_KEYS = ("vip_days", "ai_limit", "photo_secs")
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("set:"))
-async def set_start(c: CallbackQuery, state: FSMContext):
-    key = c.data[4:]
-    await c.answer()
-    await state.set_state(Adm.setting)
-    await state.update_data(key=key)
-    await c.message.answer(SET_PROMPTS[key])
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.setting, F.text)
-async def set_save(m: Message, state: FSMContext):
-    d = await state.get_data()
-    val = m.text.strip()
-    if d["key"] in NUMERIC_KEYS and not val.isdigit():
-        return await m.answer("Faqat raqam yozing.")
-    if d["key"] in ("channel", "intro") and val == "-":
-        val = ""
-    q("UPDATE settings SET v=? WHERE k=?", (val, d["key"]), commit=True)
-    await state.clear()
-    await m.answer("✅ Saqlandi.")
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("adm:"))
-async def admin_cb(c: CallbackQuery, state: FSMContext):
-    act = c.data[4:]
-    await c.answer()
-    if act == "stats":
-        n = lambda sql: q(sql, one=True)[0]
-        now = int(time.time())
-        t = "📊 Foydalanuvchilar: " + str(n("SELECT COUNT(*) FROM users"))
-        t += "\n👨 Erkak: " + str(n("SELECT COUNT(*) FROM users WHERE gender='m'"))
-        t += "\n👩 Ayol: " + str(n("SELECT COUNT(*) FROM users WHERE gender='f'"))
-        t += "\n💎 VIP: " + str(n("SELECT COUNT(*) FROM users WHERE vip_until>" + str(now)))
-        t += "\n💬 Faol suhbatlar: " + str(n("SELECT COUNT(*) FROM pairs"))
-        t += "\n🔎 Navbatda: " + str(n("SELECT COUNT(*) FROM queue"))
-        t += "\n🆕 Bugun yangi: " + str(n("SELECT COUNT(*) FROM users WHERE created>" + str(now - 86400)))
-        t += "\n🚫 Bloklangan: " + str(n("SELECT COUNT(*) FROM users WHERE banned=1"))
-        t += "\n⚠️ Shikoyatlar: " + str(n("SELECT COUNT(*) FROM reports"))
-        await c.message.answer(t)
-    elif act == "users":
-        rows = q("SELECT * FROM users ORDER BY rowid DESC LIMIT 20")
-        t = "\n".join(f"<code>{r['id']}</code> {esc(r['name'])} {r['gender']} {r['age']}"
-                      f"{' 💎' if r['vip_until'] > time.time() else ''}{' 🚫' if r['banned'] else ''}"
-                      for r in rows) or "Yo'q"
-        await c.message.answer("👥 Oxirgi 20 ta:\n\n" + t)
-    elif act == "chats":
-        rows = q("SELECT * FROM pairs LIMIT 20")
-        if not rows:
-            return await c.message.answer("Faol suhbatlar yo'q.")
-        for r in rows:
-            ua, ub = get_user(r["a"]), get_user(r["b"])
-            await c.message.answer(
-                f"💬 {esc(ua['name'])} ({r['a']}) ↔ {esc(ub['name'])} ({r['b']})",
-                reply_markup=inline([("👁 Kuzatish", f"wp:{r['a']}:{r['b']}"),
-                                     ("⛔ Uzish", f"kick:{r['a']}")]))
-    elif act == "watchlist":
-        rows = q("SELECT user_id FROM watch")
-        t = "\n".join(f"<code>{r['user_id']}</code>" for r in rows) or "Bo'sh"
-        await c.message.answer("👁 Kuzatuvdagilar:\n" + t,
-                               reply_markup=inline([("🧹 Hammasini tozalash", "wclear")], 1))
-    elif act == "find":
-        await state.set_state(Adm.find)
-        await c.message.answer("Foydalanuvchi ID yoki @username ni yozing:")
-    elif act == "vips":
-        rows = q("SELECT * FROM users WHERE vip_until>? ORDER BY vip_until", (int(time.time()),))
-        t = "\n".join(f"<code>{r['id']}</code> {esc(r['name'])} — "
-                      + datetime.fromtimestamp(r["vip_until"]).strftime("%d.%m.%Y") for r in rows)
-        await c.message.answer("💎 Faol VIP'lar:\n\n" + (t or "Yo'q"))
-    elif act == "banned":
-        rows = q("SELECT * FROM users WHERE banned=1 LIMIT 30")
-        if not rows:
-            return await c.message.answer("Bloklanganlar yo'q.")
-        for r in rows:
-            await c.message.answer(f"🚫 {esc(r['name'])} (<code>{r['id']}</code>)",
-                                   reply_markup=inline([("♻️ Blokdan chiqarish", f"unban:{r['id']}")], 1))
-    elif act == "reports":
-        rows = q("SELECT * FROM reports ORDER BY rowid DESC LIMIT 10")
-        if not rows:
-            return await c.message.answer("Shikoyatlar yo'q.")
-        for r in rows:
-            when = datetime.fromtimestamp(r["ts"]).strftime("%d.%m %H:%M")
-            await c.message.answer(
-                f"⚠️ {when}\nShikoyatchi: <code>{r['reporter']}</code>\nShikoyat qilingan: <code>{r['reported']}</code>",
-                reply_markup=inline([("🔎 Profil", f"card:{r['reported']}"),
-                                     ("🚫 Bloklash", f"ban:{r['reported']}")]))
-    elif act == "msg":
-        await state.set_state(Adm.msg)
-        await c.message.answer("Format: <code>ID matn</code> (masalan: 123456789 Salom!)")
-    elif act == "watch":
-        await state.set_state(Adm.watch)
-        await c.message.answer("Kuzatiladigan foydalanuvchi ID sini yozing:")
-    elif act == "grant":
-        await state.set_state(Adm.grant)
-        await c.message.answer("Format: <code>ID KUN</code> (masalan: 123456789 30)")
-    elif act == "bc":
-        await state.set_state(Adm.broadcast)
-        await c.message.answer("Hammaga yuboriladigan xabarni yozing:")
-    elif act == "ban":
-        await state.set_state(Adm.ban)
-        await c.message.answer("Bloklanadigan ID ni yozing:")
-    elif act == "unban":
-        await state.set_state(Adm.unban)
-        await c.message.answer("Blokdan chiqariladigan ID ni yozing:")
-
-
-async def send_user_card(m, uid):
-    u = get_user(uid)
-    if not u:
-        return await m.answer("Foydalanuvchi topilmadi.")
-    g = "Erkak" if u["gender"] == "m" else "Ayol"
-    vip = "yo'q"
-    if u["vip_until"] > time.time():
-        vip = datetime.fromtimestamp(u["vip_until"]).strftime("%d.%m.%Y") + " gacha"
-    blocked = "ha" if u["banned"] else "yo'q"
-    cap = (f"👤 {esc(u['name'])}, {g}, {u['age']}\n🏙 {esc(u['city'])}\n🆔 <code>{uid}</code>\n"
-           f"🔗 @{esc(u['username'] or '—')}\n💎 VIP: {vip}\n🚫 Bloklangan: {blocked}")
-    kb = inline([
-        ("💎 VIP berish", f"gv:{uid}"), ("❌ VIP olish", f"rv:{uid}"),
-        ("♻️ Blokdan chiqarish" if u["banned"] else "🚫 Bloklash",
-         f"unban:{uid}" if u["banned"] else f"ban:{uid}"),
-        ("👁 Kuzatish", f"wa:{uid}"), ("⛔ Suhbatni uzish", f"kick:{uid}"),
-    ])
-    await m.answer_photo(u["photo"], caption=cap, reply_markup=kb)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("card:"))
-async def card_cb(c: CallbackQuery):
-    await c.answer()
-    await send_user_card(c.message, int(c.data[5:]))
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("gv:"))
-async def give_vip_cb(c: CallbackQuery, bot: Bot):
-    uid = int(c.data[3:])
-    days = int(setting("vip_days"))
-    u = get_user(uid)
-    q("UPDATE users SET vip_until=? WHERE id=?",
-      (int(max(time.time(), u["vip_until"]) + days * 86400), uid), commit=True)
-    await c.answer(f"💎 {days} kun VIP berildi", show_alert=True)
-    try:
-        await bot.send_message(uid, f"💎 Sizga {days} kunlik VIP berildi!")
-    except Exception:
-        pass
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("rv:"))
-async def revoke_vip_cb(c: CallbackQuery):
-    q("UPDATE users SET vip_until=0 WHERE id=?", (int(c.data[3:]),), commit=True)
-    await c.answer("VIP olib tashlandi", show_alert=True)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("unban:"))
-async def unban_cb(c: CallbackQuery):
-    q("UPDATE users SET banned=0 WHERE id=?", (int(c.data[6:]),), commit=True)
-    await c.answer("Blokdan chiqarildi", show_alert=True)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("wa:"))
-async def watch_add_cb(c: CallbackQuery):
-    q("INSERT OR IGNORE INTO watch VALUES(?)", (int(c.data[3:]),), commit=True)
-    await c.answer("Kuzatuvga qo'shildi 👁", show_alert=True)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("kick:"))
-async def kick_cb(c: CallbackQuery, bot: Bot):
-    uid = int(c.data[5:])
-    p = await end_chat(uid, bot)
-    try:
-        await bot.send_message(uid, "⛔ Suhbat admin tomonidan tugatildi.", reply_markup=main_menu(uid))
-    except Exception:
-        pass
-    await c.answer("Suhbat uzildi" if p else "Suhbat topilmadi", show_alert=True)
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.find, F.text)
-async def adm_find(m: Message, state: FSMContext):
-    await state.clear()
-    t = m.text.strip()
-    if t.isdigit():
-        uid = int(t)
-    else:
-        r = q("SELECT id FROM users WHERE username=? COLLATE NOCASE", (t.lstrip("@"),), one=True)
-        uid = r["id"] if r else 0
-    await send_user_card(m, uid)
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.msg, F.text)
-async def adm_msg(m: Message, state: FSMContext, bot: Bot):
-    await state.clear()
-    parts = m.text.split(maxsplit=1)
-    if len(parts) == 2 and parts[0].isdigit():
-        try:
-            await bot.send_message(int(parts[0]), esc(parts[1]))
-            await m.answer("✉️ Yuborildi.")
-        except Exception:
-            await m.answer("Yuborib bo'lmadi.")
-    else:
-        await m.answer("Format noto'g'ri.")
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("wp:"))
-async def watch_pair(c: CallbackQuery):
-    _, a, b = c.data.split(":")
-    q("INSERT OR IGNORE INTO watch VALUES(?)", (int(a),), commit=True)
-    q("INSERT OR IGNORE INTO watch VALUES(?)", (int(b),), commit=True)
-    await c.answer("Kuzatuv boshlandi 👁", show_alert=True)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data == "wclear")
-async def watch_clear(c: CallbackQuery):
-    q("DELETE FROM watch", commit=True)
-    await c.answer("Tozalandi", show_alert=True)
-
-
-@router.callback_query(F.from_user.id == ADMIN_ID, F.data.startswith("ban:"))
-async def ban_cb(c: CallbackQuery, bot: Bot):
-    await do_ban(int(c.data[4:]), bot)
-    await c.answer("Bloklandi", show_alert=True)
-
-
-async def do_ban(uid, bot):
-    q("UPDATE users SET banned=1 WHERE id=?", (uid,), commit=True)
-    q("DELETE FROM queue WHERE user_id=?", (uid,), commit=True)
-    await end_chat(uid, bot)
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.watch, F.text)
-async def adm_watch(m: Message, state: FSMContext):
-    await state.clear()
-    if m.text.strip().isdigit():
-        q("INSERT OR IGNORE INTO watch VALUES(?)", (int(m.text),), commit=True)
-        await m.answer("👁 Kuzatuvga qo'shildi.")
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.grant, F.text)
-async def adm_grant(m: Message, state: FSMContext, bot: Bot):
-    await state.clear()
-    parts = m.text.split()
-    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit() and get_user(int(parts[0])):
-        uid, days = int(parts[0]), int(parts[1])
-        u = get_user(uid)
-        q("UPDATE users SET vip_until=? WHERE id=?",
-          (int(max(time.time(), u["vip_until"]) + days * 86400), uid), commit=True)
-        await m.answer("💎 VIP berildi.")
-        await bot.send_message(uid, f"💎 Sizga {days} kunlik VIP berildi!")
-    else:
-        await m.answer("Format noto'g'ri yoki foydalanuvchi topilmadi.")
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.broadcast, F.text)
-async def adm_bc(m: Message, state: FSMContext, bot: Bot):
-    await state.clear()
-    ok = 0
-    for r in q("SELECT id FROM users WHERE banned=0"):
-        try:
-            await bot.send_message(r["id"], m.text)
-            ok += 1
-            await asyncio.sleep(0.05)
-        except Exception:
-            pass
-    await m.answer(f"📨 Yuborildi: {ok}")
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.ban, F.text)
-async def adm_ban(m: Message, state: FSMContext, bot: Bot):
-    await state.clear()
-    if m.text.strip().isdigit():
-        await do_ban(int(m.text), bot)
-        await m.answer("🚫 Bloklandi.")
-
-
-@router.message(F.from_user.id == ADMIN_ID, Adm.unban, F.text)
-async def adm_unban(m: Message, state: FSMContext):
-    await state.clear()
-    if m.text.strip().isdigit():
-        q("UPDATE users SET banned=0 WHERE id=?", (int(m.text),), commit=True)
-        await m.answer("♻️ Blokdan chiqarildi.")
-
-
-# ---------------------------------------------------------------- Suhbatni uzatish (eng oxirida)
-@router.message(StateFilter(None))
-async def relay(m: Message, bot: Bot):
-    uid = m.from_user.id
-    p = partner(uid)
-    if not p:
-        if q("SELECT 1 FROM queue WHERE user_id=?", (uid,), one=True):
-            return await m.answer("🔎 Hali qidirilmoqda...")
-        return await m.answer("Menyudan tanlang 👇", reply_markup=main_menu(uid))
-    if not is_vip(uid):
-        if m.content_type not in ("text", "sticker", "voice"):
-            return await m.answer("🔒 Tekin tarifda faqat matn, stiker va ovozli xabar yuborish mumkin. "
-                                  "Rasm/video uchun 💎 VIP kerak.")
-        if m.text and has_contact(m.text):
-            return await m.answer("🚫 Tekin tarifda telefon raqam, nik, havola va ilova nomlarini "
-                                  "yuborish taqiqlangan. 💎 VIP oling.",
-                                  reply_markup=inline([("💎 VIP olish", "vip:info")], 1))
-    try:
-        await bot.copy_message(p, m.chat.id, m.message_id)
-    except Exception:
-        await end_chat(uid, bot, notify=False)
-        return await m.answer("Suhbatdosh botni tark etdi. Suhbat tugatildi.",
-                              reply_markup=main_menu(uid))
-    if q("SELECT 1 FROM watch WHERE user_id IN (?,?)", (uid, p), one=True):
-        ua, ub = get_user(uid), get_user(p)
-        try:
-            await bot.send_message(ADMIN_ID, f"👁 {esc(ua['name'])} ({uid}) → {esc(ub['name'])} ({p})")
-            await bot.copy_message(ADMIN_ID, m.chat.id, m.message_id)
-        except Exception:
-            pass
-
-
-# ---------------------------------------------------------------- RUN
-async def health(request):
-    return web.Response(text="Bot ishlayapti")
-
-
-async def start_web():
-    app = web.Application()
-    app.router.add_get("/", health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", "10000")))
-    await site.start()
-
-
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    await start_web()
-    bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher(storage=MemoryStorage())
-    dp.update.outer_middleware(BanMiddleware())
-    dp.include_router(router)
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    q("INSERT INTO reports V
