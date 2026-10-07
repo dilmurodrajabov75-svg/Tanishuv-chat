@@ -699,6 +699,19 @@ async def start_web():
     await site.start()
 
 
+async def health(request):
+    return web.Response(text="Bot ishlayapti")
+
+
+async def start_web():
+    app = web.Application()
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", "10000")))
+    await site.start()
+
+
 async def main():
     logging.basicConfig(level=logging.INFO)
     await start_web()
@@ -711,4 +724,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-                       
+  
